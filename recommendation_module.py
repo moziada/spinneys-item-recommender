@@ -16,33 +16,21 @@ class Item2Item:
         if load_dir:
             self.load_item2item_matrix(load_dir)
 
-    def calc_item2item_matrix(self, data: pd.DataFrame, receipt_col: str, item_col: str, save_dir: str):
-        df = data.copy()
-        df.drop_duplicates(subset=[receipt_col, item_col], inplace=True)
-        unique_items = df[item_col].unique()
-        self.idx2item = {str(i):str(code) for i, code in enumerate(unique_items)}
-        self.item2idx = {str(code):str(i) for i, code in enumerate(unique_items)}
+    def calc_item2item_matrix(self, data: pd.DataFrame, user_col: str, item_col: str, save_dir: str):
+        df = data[[user_col, item_col]]
+        df.drop_duplicates(subset=[user_col, item_col], inplace=True)
 
-        receipt_items = df.groupby(receipt_col)[item_col].apply(set)
-        # filter out receipts with only one item
-        receipt_items = receipt_items[receipt_items.apply(lambda x: len(x) > 1)]
+        interaction_matrix = df.merge(df[[user_col, item_col]], on=user_col, how="outer").groupby([item_col + "_x", item_col + "_y"]).count().unstack().fillna(0).astype(int)
+        self.idx2item = {str(i):str(code) for i, code in enumerate(interaction_matrix.index)}
+        self.item2idx = {str(code):str(i) for i, code in enumerate(interaction_matrix.index)}
 
-        item_combinations = receipt_items.apply(combinations, args=(2,))
-        freq_matrix = pd.DataFrame(data=np.zeros((len(unique_items), len(unique_items))), index=unique_items, columns=unique_items, dtype=int)
-        for row in tqdm(item_combinations):
-            for idx in row:
-                freq_matrix.loc[idx] += 1
-        
-        adjusted_freq_matrix = freq_matrix.copy()
-        adjusted_freq_matrix.loc[:] += np.triu(adjusted_freq_matrix).T
-        adjusted_freq_matrix.loc[:] = np.tril(adjusted_freq_matrix, k=-1) + np.tril(adjusted_freq_matrix, k=-1).T
-
-        self.item2item_matrix = sparse.csc_matrix(adjusted_freq_matrix.values)
+        np.fill_diagonal(interaction_matrix.values, 0)
+        self.item2item_matrix = sparse.csc_matrix(interaction_matrix.values)
         if save_dir:
             self._save_item2item_matrix(save_dir)
 
     def _save_item2item_matrix(self, save_dir: str):
-        full_path = Path("models") / save_dir
+        full_path = Path("models") / "item2item" / save_dir
         if not os.path.exists(full_path):
             os.makedirs(full_path)
         
