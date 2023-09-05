@@ -1,0 +1,9 @@
+.ipynb_checkpoints
+.vscode
+__pycache__
+
+models/*
+!models/.gitkeep
+
+data/*
+!data/.gitkeep
