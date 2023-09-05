@@ -51,7 +51,7 @@ class Item2Item:
             pickle.dump(self.idx2item, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
     def load_item2item_matrix(self, load_dir: str):
-        full_path = Path("models") / load_dir
+        full_path = Path("models") / "item2item" / load_dir
         self.item2item_matrix = sparse.load_npz(full_path / "item2item-matrix.npz")
         with open(full_path / 'idx2item.pickle', 'rb') as handle:
             self.idx2item = pickle.load(handle)
@@ -71,15 +71,32 @@ class Item2Item:
 class Item2Subgroup():
     def __init__(self, load_dir: str = None):
         self.item2subgroup_matrix = None
+        
         self.idx2item = None
+        self.item2idx = None
+        
         self.idx2subgroup = None
+        self.subgroup2idx = None
+
         self.item2subgroup_mapper = None
         
         if load_dir:
             self.load_item2subgroup(load_dir)
 
     def load_item2subgroup(self, load_dir):
-        pass
+        full_path = Path("models") / "item2subgroup" / load_dir
+        self.item2subgroup_matrix = sparse.load_npz(full_path / "item2subgroup-matrix.npz")
+        
+        with open(full_path / 'idx2item.pickle', 'rb') as handle:
+            self.idx2item = pickle.load(handle)
+        self.item2idx = {v: k for k, v in self.idx2item.items()}
+
+        with open(full_path / 'idx2subgroup.pickle', 'rb') as handle:
+            self.idx2subgroup = pickle.load(handle)
+        self.subgroup2idx = {v: k for k, v in self.idx2subgroup.items()}
+
+        with open(full_path / 'item2subgroup_mapper.pickle', 'rb') as handle:
+            self.item2subgroup_mapper = pickle.load(handle)
 
     def calc_item2subgroup_matrix(self, data: pd.DataFrame, receipt_col: str, item_col: str, subgroup_col: str, save_dir: str):
         df = data.copy()
@@ -122,3 +139,13 @@ class Item2Subgroup():
 
         with open(full_path / "item2subgroup_mapper.pickle", 'wb') as handle:
             pickle.dump(self.item2subgroup_mapper, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    
+    def get_top_n_frequent_subgroups(self, item_code: str, n=5) -> dict:
+        idx = int(self.item2idx[item_code])
+        subgroup_scores = self.item2subgroup_matrix[idx, :].toarray()
+        top_n_idxs = np.argpartition(subgroup_scores, -n)[0, -n:]
+        ret_dict = {
+            "subgroups": [self.idx2subgroup[str(i)] for i in top_n_idxs],
+            "scores": subgroup_scores[0, top_n_idxs]
+            }
+        return ret_dict
