@@ -16,16 +16,23 @@ class Item2Item:
         if load_dir:
             self.load_item2item_matrix(load_dir)
 
-    def calc_item2item_matrix(self, data: pd.DataFrame, user_col: str, item_col: str, save_dir: str):
-        df = data[[user_col, item_col]]
+    def calc_item2item_matrix(self, data: pd.DataFrame, user_col: str, item_col: str, save_dir: str = None):
+        df = data.loc[:, [user_col, item_col]]
         df.drop_duplicates(subset=[user_col, item_col], inplace=True)
 
-        interaction_matrix = df.merge(df[[user_col, item_col]], on=user_col, how="outer").groupby([item_col + "_x", item_col + "_y"]).count().unstack().fillna(0).astype(int)
-        self.idx2item = {str(i):str(code) for i, code in enumerate(interaction_matrix.index)}
-        self.item2idx = {str(code):str(i) for i, code in enumerate(interaction_matrix.index)}
+        interaction_matrix = df.merge(df[[user_col, item_col]], on=user_col, how="outer").groupby([item_col + "_x", item_col + "_y"]).count().unstack().fillna(0)
+        self.idx2item = {i:str(code) for i, code in enumerate(interaction_matrix.index)}
+        self.item2idx = {str(code):i for i, code in enumerate(interaction_matrix.index)}
 
-        np.fill_diagonal(interaction_matrix.values, 0)
-        self.item2item_matrix = sparse.csc_matrix(interaction_matrix.values)
+        self.item2item_matrix = interaction_matrix.values
+        np.fill_diagonal(self.item2item_matrix, 0)
+        
+        item_frequency = df[[item_col]].groupby(item_col).size()
+        order = item_frequency.index.astype(str).map(self.item2idx).values
+        item_frequency = np.expand_dims(item_frequency.values[order], axis=0) + np.expand_dims(item_frequency.values[order], axis=1)
+        
+        self.item2item_matrix = interaction_matrix.values / item_frequency
+        self.item2item_matrix = sparse.csc_matrix(self.item2item_matrix)
         if save_dir:
             self._save_item2item_matrix(save_dir)
 
@@ -46,11 +53,11 @@ class Item2Item:
         self.item2idx = {v: k for k, v in self.idx2item.items()}
 
     def get_top_n_frequent_items(self, item_code: str, n=5) -> dict:
-        idx = int(self.item2idx[item_code])
+        idx = self.item2idx[item_code]
         item_scores = self.item2item_matrix[idx, :].toarray()
         top_n_idxs = np.argpartition(item_scores, -n)[0, -n:]
         ret_dict = {
-            "items": [self.idx2item[str(i)] for i in top_n_idxs],
+            "items": [self.idx2item[i] for i in top_n_idxs],
             "scores": item_scores[0, top_n_idxs]
             }
         return ret_dict
@@ -129,7 +136,7 @@ class Item2Subgroup():
             pickle.dump(self.item2subgroup_mapper, handle, protocol=pickle.HIGHEST_PROTOCOL)
     
     def get_top_n_frequent_subgroups(self, item_code: str, n=5) -> dict:
-        idx = int(self.item2idx[item_code])
+        idx = self.item2idx[item_code]
         subgroup_scores = self.item2subgroup_matrix[idx, :].toarray()
         top_n_idxs = np.argpartition(subgroup_scores, -n)[0, -n:]
         ret_dict = {
