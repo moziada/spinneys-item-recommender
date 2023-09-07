@@ -31,7 +31,7 @@ class Item2Item:
         
         item_frequency = df[[item_col]].groupby(item_col).size()
         order = item_frequency.index.astype(str).map(self.item2idx).values
-        item_frequency = np.expand_dims(item_frequency.values[order], axis=0) + np.expand_dims(item_frequency.values[order], axis=1)
+        item_frequency = np.expand_dims(item_frequency.values[order], axis=0) + np.expand_dims(item_frequency.values[order], axis=1) - interaction_matrix.values
         
         self.item2item_matrix = interaction_matrix.values / item_frequency
         self.item2item_matrix = sparse.csc_matrix(self.item2item_matrix)
@@ -88,10 +88,12 @@ class Item2Item:
             subgroup = self.item_to_subgroup[item_code]
             items_in_subgroup = set(self.subgroup_to_items[subgroup]).intersection(set(self.item2idx.keys()))
             exclude_idxs = list(map(lambda x: self.item2idx[x], items_in_subgroup))
-            print(item_scores.shape)
             item_scores[exclude_idxs] = 0
 
+        # Getting top n scores
         top_n_idxs = np.argpartition(item_scores, -n)[-n:]
+        # Sorting top_n_idxs in descending order
+        top_n_idxs = top_n_idxs[np.argsort(item_scores[top_n_idxs])[::-1]]
         ret_dict = {
             "items": [self.idx2item[i] for i in top_n_idxs],
             "scores": item_scores[top_n_idxs]
