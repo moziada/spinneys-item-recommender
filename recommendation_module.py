@@ -12,6 +12,8 @@ class Item2Item:
         self.item2item_matrix = None
         self.item2idx = None
         self.idx2item = None
+        self.subgroup_to_items = None
+        self.item_to_subgroup = None
 
         if load_dir:
             self.load_item2item_matrix(load_dir)
@@ -33,8 +35,17 @@ class Item2Item:
         
         self.item2item_matrix = interaction_matrix.values / item_frequency
         self.item2item_matrix = sparse.csc_matrix(self.item2item_matrix)
+
+        self._map_items_with_subgroup()
         if save_dir:
             self._save_item2item_matrix(save_dir)
+    
+    def _map_items_with_subgroup(self):
+        df = pd.read_excel("data/products info.xlsx")
+        df["Item Code"] = df["Item Code"].astype(str)
+        df["Subgroup Code"] = df["Subgroup Code"].astype(str)
+        self.subgroup_to_items = df.groupby("Subgroup Code")['Item Code'].apply(set).to_dict()
+        self.item_to_subgroup = df.set_index("Item Code")["Subgroup Code"].to_dict()
 
     def _save_item2item_matrix(self, save_dir: str):
         full_path = Path("models") / "item2item" / save_dir
@@ -42,23 +53,48 @@ class Item2Item:
             os.makedirs(full_path)
         
         sparse.save_npz(full_path / "item2item-matrix.npz", self.item2item_matrix)
+        
         with open(full_path / 'idx2item.pickle', 'wb') as handle:
             pickle.dump(self.idx2item, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        
+        with open(full_path / 'subgroup_to_items.pickle', 'wb') as handle:
+            pickle.dump(self.subgroup_to_items, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        
+        with open(full_path / 'item_to_subgroup.pickle', 'wb') as handle:
+            pickle.dump(self.item_to_subgroup, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
     def load_item2item_matrix(self, load_dir: str):
         full_path = Path("models") / "item2item" / load_dir
+        
         self.item2item_matrix = sparse.load_npz(full_path / "item2item-matrix.npz")
+        
         with open(full_path / 'idx2item.pickle', 'rb') as handle:
             self.idx2item = pickle.load(handle)
         self.item2idx = {v: k for k, v in self.idx2item.items()}
 
-    def get_top_n_frequent_items(self, item_code: str, n=5) -> dict:
-        idx = self.item2idx[item_code]
-        item_scores = self.item2item_matrix[idx, :].toarray()
-        top_n_idxs = np.argpartition(item_scores, -n)[0, -n:]
+        with open(full_path / 'subgroup_to_items.pickle', 'rb') as handle:
+            self.subgroup_to_items = pickle.load(handle)
+
+        with open(full_path / 'item_to_subgroup.pickle', 'rb') as handle:
+            self.item_to_subgroup = pickle.load(handle)
+
+    def get_top_n_frequent_items(self, item_code: str, n=5, exclude_subgroup=False) -> dict:
+        idx = self.item2idx.get(item_code)
+        if not idx:
+            return {"items": [], "scores": []}
+        
+        item_scores = np.squeeze(self.item2item_matrix[idx, :].toarray())
+        if exclude_subgroup:
+            subgroup = self.item_to_subgroup[item_code]
+            items_in_subgroup = set(self.subgroup_to_items[subgroup]).intersection(set(self.item2idx.keys()))
+            exclude_idxs = list(map(lambda x: self.item2idx[x], items_in_subgroup))
+            print(item_scores.shape)
+            item_scores[exclude_idxs] = 0
+
+        top_n_idxs = np.argpartition(item_scores, -n)[-n:]
         ret_dict = {
             "items": [self.idx2item[i] for i in top_n_idxs],
-            "scores": item_scores[0, top_n_idxs]
+            "scores": item_scores[top_n_idxs]
             }
         return ret_dict
 
