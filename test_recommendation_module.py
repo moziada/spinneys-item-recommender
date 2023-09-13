@@ -8,7 +8,7 @@ def test_fit():
     model = Item2Item()
     df = pd.DataFrame({
         "Receipt No_": ["100", "100", "100", "100", "101", "101", "102"],
-        "Item No_": ["10", "11", "12", "13", "10", "11", "10"]})
+        "Item No_": ["10", "11", "12", "13", "10", "11", "10"]}, dtype=["category", "category"])
     model.fit(df, user_col="Receipt No_", item_col="Item No_")
 
     result = np.array([[0, 2/3, 1/3, 1/3], [2/3, 0, 0.5, 0.5], [1/3, 0.5, 0, 1], [1/3, 0.5, 1, 0]])
@@ -19,15 +19,15 @@ def test_partial_fit():
     
     df1 = pd.DataFrame({
         "Receipt No_": ["100", "100", "100", "100"],
-        "Item No_": ["10", "11", "12", "13"]})
+        "Item No_": ["10", "11", "12", "13"]}, dtype=["category", "category"])
     
     df2 = pd.DataFrame({
         "Receipt No_": ["101", "101"],
-        "Item No_": ["10", "11"]})
+        "Item No_": ["10", "11"]}, dtype=["category", "category"])
 
     df3 = pd.DataFrame({
         "Receipt No_": ["102"],
-        "Item No_": ["10"]})
+        "Item No_": ["10"]}, dtype=["category", "category"])
     
     for df in [df1, df2, df3]:
         model.partial_fit(df, user_col="Receipt No_", item_col="Item No_")

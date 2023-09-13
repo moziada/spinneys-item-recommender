@@ -9,7 +9,7 @@ import os
 
 class Item2Item:
     def __init__(self, load_dir: str = None):
-        self.item2item_frequency = pd.DataFrame()
+        self.item2item_frequency: np.array = None
         self.item2item_scores: sparse.csc_matrix = None
         
         self.item2idx:dict = None
@@ -22,14 +22,15 @@ class Item2Item:
         if load_dir:
             self.load_item2item_matrix(load_dir)
     
-    def partial_fit(self, data: pd.DataFrame, user_col: str, item_col: str, subgroup_col: str):
+    def partial_fit(self, data: pd.DataFrame, user_col: str, item_col: str):
         df = data.loc[:, [user_col, item_col]].drop_duplicates(subset=[user_col, item_col])
+        df[item_col] = df[item_col].cat.set_categories(self.item_to_subgroup.keys())
+        print(df[item_col])
         interaction_matrix = df.merge(df, on=user_col, how="outer").groupby([item_col + "_x", item_col + "_y"]).size().unstack().fillna(0)
         
-        self.item2item_frequency = self.item2item_frequency.add(interaction_matrix, fill_value=0).fillna(0)
-        assert (self.item2item_frequency.index == self.item2item_frequency.columns).all()
-        
-        self.items_subgroup = pd.concat([self.items_subgroup, data[[item_col, subgroup_col]]], axis=0).drop_duplicates(item_col)
+        if not self.item2item_frequency:
+            self.item2item_frequency = np.zeros(shape=interaction_matrix.values.shape)
+        self.item2item_frequency +=  interaction_matrix.values
 
     def estimate_scores(self):
         self.idx2item = {i:str(code) for i, code in enumerate(self.item2item_frequency.index)}
@@ -43,14 +44,15 @@ class Item2Item:
         np.fill_diagonal(intersection, 0)
         self.item2item_scores = sparse.csc_matrix(intersection / item2item_frequency_union)
 
-    def fit(self, data: pd.DataFrame, user_col: str, item_col: str, subgroup_col:str):
-        self.partial_fit(data, user_col, item_col, subgroup_col)
+    def fit(self, data: pd.DataFrame, user_col: str, item_col: str):
+        self.partial_fit(data, user_col, item_col)
         self.estimate_scores()
-        self._map_items_subgroup()
     
-    def _map_items_subgroup(self):
-        self.subgroup_to_items = self.items_subgroup.groupby("Subgroup")['Item No_'].apply(set).to_dict()
-        self.item_to_subgroup = self.items_subgroup.set_index("Item No_")["Subgroup"].to_dict()
+    def record_items_subgroup(self, df, item_col, subgroup_col):
+        self.items_subgroup = pd.concat([self.items_subgroup, df[[item_col, subgroup_col]]], axis=0).drop_duplicates(item_col)
+        
+        self.subgroup_to_items = self.items_subgroup.groupby(subgroup_col)[item_col].apply(set).to_dict()
+        self.item_to_subgroup = self.items_subgroup.set_index(item_col)[subgroup_col].to_dict()
 
     def save_model(self, save_dir: str):
         full_path = Path("models") / "item2item" / save_dir
