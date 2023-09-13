@@ -9,50 +9,55 @@ import os
 
 class Item2Item:
     def __init__(self, load_dir: str = None):
-        self.item2item_matrix = None
-        self.item2idx = None
-        self.idx2item = None
-        self.subgroup_to_items = None
-        self.item_to_subgroup = None
+        self.item2item_frequency = pd.DataFrame()
+        self.item2item_scores: sparse.csc_matrix = None
+        
+        self.item2idx:dict = None
+        self.idx2item:dict = None
+        
+        self.items_subgroup = pd.DataFrame()
+        self.subgroup_to_items: dict = None
+        self.item_to_subgroup: dict = None
 
         if load_dir:
             self.load_item2item_matrix(load_dir)
-
-    def calc_item2item_matrix(self, data: pd.DataFrame, user_col: str, item_col: str, save_dir: str = None):
-        df = data.loc[:, [user_col, item_col]]
-        df.drop_duplicates(subset=[user_col, item_col], inplace=True)
-
-        interaction_matrix = df.merge(df[[user_col, item_col]], on=user_col, how="outer").groupby([item_col + "_x", item_col + "_y"]).count().unstack().fillna(0)
-        self.idx2item = {i:str(code) for i, code in enumerate(interaction_matrix.index)}
-        self.item2idx = {str(code):i for i, code in enumerate(interaction_matrix.index)}
-
-        self.item2item_matrix = interaction_matrix.values
-        np.fill_diagonal(self.item2item_matrix, 0)
-        
-        item_frequency = df[[item_col]].groupby(item_col).size()
-        order = item_frequency.index.astype(str).map(self.item2idx).values
-        item_frequency = np.expand_dims(item_frequency.values[order], axis=0) + np.expand_dims(item_frequency.values[order], axis=1) - interaction_matrix.values
-        
-        self.item2item_matrix = interaction_matrix.values / item_frequency
-        self.item2item_matrix = sparse.csc_matrix(self.item2item_matrix)
-
-        self._map_items_with_subgroup()
-        if save_dir:
-            self._save_item2item_matrix(save_dir)
     
-    def _map_items_with_subgroup(self):
-        df = pd.read_excel("data/products info.xlsx")
-        df["Item Code"] = df["Item Code"].astype(str)
-        df["Subgroup Code"] = df["Subgroup Code"].astype(str)
-        self.subgroup_to_items = df.groupby("Subgroup Code")['Item Code'].apply(set).to_dict()
-        self.item_to_subgroup = df.set_index("Item Code")["Subgroup Code"].to_dict()
+    def partial_fit(self, data: pd.DataFrame, user_col: str, item_col: str):
+        df = data.loc[:, [user_col, item_col]].drop_duplicates(subset=[user_col, item_col])
+        interaction_matrix = df.merge(df[[user_col, item_col]], on=user_col, how="outer").groupby([item_col + "_x", item_col + "_y"]).size().unstack().fillna(0)
+        
+        self.item2item_frequency = self.item2item_frequency.add(interaction_matrix, fill_value=0).fillna(0)
+        assert (self.item2item_frequency.index == self.item2item_frequency.columns).all()
 
-    def _save_item2item_matrix(self, save_dir: str):
+        self.items_subgroup = pd.concat([self.items_subgroup, data[["Item No_", "Subgroup"]]], axis=0).drop_duplicates("Item No_")
+
+    def estimate_scores(self):
+        self.idx2item = {i:str(code) for i, code in enumerate(self.item2item_frequency.index)}
+        self.item2idx = {str(code):i for i, code in enumerate(self.item2item_frequency.index)}
+
+        item_frequency = np.diagonal(self.item2item_frequency.values)
+        # Subtracting intersection of items is to make score ranges from 0.0 to 1.0
+        item2item_frequency_union = item_frequency + item_frequency[np.newaxis].T - self.item2item_frequency.values
+        
+        intersection = self.item2item_frequency.values
+        np.fill_diagonal(intersection, 0)
+        self.item2item_scores = sparse.csc_matrix(intersection / item2item_frequency_union)
+
+    def fit(self, data: pd.DataFrame, user_col: str, item_col: str, save_dir: str = None):
+        self.partial_fit(data, user_col, item_col)
+        self.estimate_scores()
+        self._map_items_subgroup()
+    
+    def _map_items_subgroup(self):
+        self.subgroup_to_items = self.items_subgroup.groupby("Subgroup")['Item No_'].apply(set).to_dict()
+        self.item_to_subgroup = self.items_subgroup.set_index("Item No_")["Subgroup"].to_dict()
+
+    def save_model(self, save_dir: str):
         full_path = Path("models") / "item2item" / save_dir
         if not os.path.exists(full_path):
             os.makedirs(full_path)
         
-        sparse.save_npz(full_path / "item2item-matrix.npz", self.item2item_matrix)
+        sparse.save_npz(full_path / "item2item-scores.npz", self.item2item_scores)
         
         with open(full_path / 'idx2item.pickle', 'wb') as handle:
             pickle.dump(self.idx2item, handle, protocol=pickle.HIGHEST_PROTOCOL)
@@ -66,7 +71,7 @@ class Item2Item:
     def load_item2item_matrix(self, load_dir: str):
         full_path = Path("models") / "item2item" / load_dir
         
-        self.item2item_matrix = sparse.load_npz(full_path / "item2item-matrix.npz")
+        self.item2item_scores = sparse.load_npz(full_path / "item2item-scores.npz")
         
         with open(full_path / 'idx2item.pickle', 'rb') as handle:
             self.idx2item = pickle.load(handle)
@@ -83,7 +88,7 @@ class Item2Item:
         if not idx:
             return {"items": [], "scores": []}
         
-        item_scores = np.squeeze(self.item2item_matrix[idx, :].toarray())
+        item_scores = np.squeeze(self.item2item_scores[idx, :].toarray())
         if exclude_subgroup:
             subgroup = self.item_to_subgroup[item_code]
             items_in_subgroup = set(self.subgroup_to_items[subgroup]).intersection(set(self.item2idx.keys()))
