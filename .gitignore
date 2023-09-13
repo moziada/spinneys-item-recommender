@@ -7,3 +7,5 @@ models/*
 
 data/*
 !data/.gitkeep
+
+db_config.json
