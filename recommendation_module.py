@@ -22,14 +22,14 @@ class Item2Item:
         if load_dir:
             self.load_item2item_matrix(load_dir)
     
-    def partial_fit(self, data: pd.DataFrame, user_col: str, item_col: str):
+    def partial_fit(self, data: pd.DataFrame, user_col: str, item_col: str, subgroup_col: str):
         df = data.loc[:, [user_col, item_col]].drop_duplicates(subset=[user_col, item_col])
-        interaction_matrix = df.merge(df[[user_col, item_col]], on=user_col, how="outer").groupby([item_col + "_x", item_col + "_y"]).size().unstack().fillna(0)
+        interaction_matrix = df.merge(df, on=user_col, how="outer").groupby([item_col + "_x", item_col + "_y"]).size().unstack().fillna(0)
         
         self.item2item_frequency = self.item2item_frequency.add(interaction_matrix, fill_value=0).fillna(0)
         assert (self.item2item_frequency.index == self.item2item_frequency.columns).all()
-
-        self.items_subgroup = pd.concat([self.items_subgroup, data[["Item No_", "Subgroup"]]], axis=0).drop_duplicates("Item No_")
+        
+        self.items_subgroup = pd.concat([self.items_subgroup, data[[item_col, subgroup_col]]], axis=0).drop_duplicates(item_col)
 
     def estimate_scores(self):
         self.idx2item = {i:str(code) for i, code in enumerate(self.item2item_frequency.index)}
@@ -43,8 +43,8 @@ class Item2Item:
         np.fill_diagonal(intersection, 0)
         self.item2item_scores = sparse.csc_matrix(intersection / item2item_frequency_union)
 
-    def fit(self, data: pd.DataFrame, user_col: str, item_col: str, save_dir: str = None):
-        self.partial_fit(data, user_col, item_col)
+    def fit(self, data: pd.DataFrame, user_col: str, item_col: str, subgroup_col:str):
+        self.partial_fit(data, user_col, item_col, subgroup_col)
         self.estimate_scores()
         self._map_items_subgroup()
     
