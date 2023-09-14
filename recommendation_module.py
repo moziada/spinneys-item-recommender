@@ -42,11 +42,11 @@ class Item2Item:
         intersection = self.item2item_frequency.values
         np.fill_diagonal(intersection, 0)
         self.item2item_scores = sparse.csc_matrix(intersection / item2item_frequency_union)
+        self._map_items_subgroup()
 
     def fit(self, data: pd.DataFrame, user_col: str, item_col: str, subgroup_col:str):
         self.partial_fit(data, user_col, item_col, subgroup_col)
         self.estimate_scores()
-        self._map_items_subgroup()
     
     def _map_items_subgroup(self):
         self.subgroup_to_items = self.items_subgroup.groupby("Subgroup")['Item No_'].apply(set).to_dict()
