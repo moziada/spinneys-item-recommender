@@ -9,7 +9,7 @@ import os
 
 class Item2Item:
     def __init__(self, load_dir: str = None):
-        self.item2item_frequency: np.array = None
+        self.item2item_frequency: np.array = 0
         self.item2item_scores: sparse.csc_matrix = None
         
         self.item2idx:dict = None
@@ -28,21 +28,15 @@ class Item2Item:
         print(df[item_col])
         interaction_matrix = df.merge(df, on=user_col, how="outer").groupby([item_col + "_x", item_col + "_y"]).size().unstack().fillna(0)
         
-        if not self.item2item_frequency:
-            self.item2item_frequency = np.zeros(shape=interaction_matrix.values.shape)
         self.item2item_frequency +=  interaction_matrix.values
 
     def estimate_scores(self):
-        self.idx2item = {i:str(code) for i, code in enumerate(self.item2item_frequency.index)}
-        self.item2idx = {str(code):i for i, code in enumerate(self.item2item_frequency.index)}
-
-        item_frequency = np.diagonal(self.item2item_frequency.values)
+        item_frequency = np.diagonal(self.item2item_frequency)
         # Subtracting intersection of items is to make score ranges from 0.0 to 1.0
-        item2item_frequency_union = item_frequency + item_frequency[np.newaxis].T - self.item2item_frequency.values
+        item2item_frequency_union = item_frequency + item_frequency[np.newaxis].T - self.item2item_frequency
         
-        intersection = self.item2item_frequency.values
-        np.fill_diagonal(intersection, 0)
-        self.item2item_scores = sparse.csc_matrix(intersection / item2item_frequency_union)
+        np.fill_diagonal(self.item2item_frequency, 0)
+        self.item2item_scores = sparse.csc_matrix(self.item2item_frequency / item2item_frequency_union)
 
     def fit(self, data: pd.DataFrame, user_col: str, item_col: str):
         self.partial_fit(data, user_col, item_col)
@@ -51,6 +45,9 @@ class Item2Item:
     def record_items_subgroup(self, df, item_col, subgroup_col):
         self.items_subgroup = pd.concat([self.items_subgroup, df[[item_col, subgroup_col]]], axis=0).drop_duplicates(item_col)
         
+        self.idx2item = {i:str(code) for i, code in enumerate(self.items_subgroup[item_col])}
+        self.item2idx = {str(code):i for i, code in enumerate(self.items_subgroup[item_col])}
+
         self.subgroup_to_items = self.items_subgroup.groupby(subgroup_col)[item_col].apply(set).to_dict()
         self.item_to_subgroup = self.items_subgroup.set_index(item_col)[subgroup_col].to_dict()
 
