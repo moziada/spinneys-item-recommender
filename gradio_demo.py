@@ -1,4 +1,5 @@
 import gradio as gr
+import plotly.express as px
 import os
 import pandas as pd
 from recommendation_module import *
@@ -18,7 +19,9 @@ def bar_plot_fn(exclude_subgroup, item_code, n):
             "items": [items_mapper[i_code]["Item"] + " (" + str(items_mapper[i_code]["Product Size"]) + ")" for i_code in output["items"]],
             "scores": output["scores"]
             })
-    return gr.BarPlot.update(df, "items", y="scores", vertical=False, width=700), gr.Textbox.update(items_mapper[item_code]["Item"] + " (" + str(items_mapper[item_code]["Product Size"]) + ")")
+    fig = px.bar(df, x="scores", y="items", orientation="h")
+    fig.update_layout(yaxis=dict(tickfont=dict(size=16)), height=300)
+    return fig, gr.Textbox.update(items_mapper[item_code]["Item"] + " (" + str(items_mapper[item_code]["Product Size"]) + ")")
 
 
 #available_models = os.listdir("models/item2item")
@@ -34,7 +37,7 @@ with gr.Blocks(theme=gr.themes.Default(text_size=gr.themes.sizes.text_lg)) as de
         with gr.Row():
             submit = gr.Button()
         prod_name = gr.Textbox(label="Item Name")
-        plot = gr.BarPlot()
+        plot = gr.Plot()
 
     submit.click(bar_plot_fn, inputs=[exclude_subgroup, item_code, num_of_recommendations], outputs=[plot, prod_name])
     #exclude_subgroup.change(bar_plot_fn, inputs=[exclude_subgroup, item_code, num_of_recommendations], outputs=[plot, prod_name])
