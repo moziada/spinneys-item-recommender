@@ -10,7 +10,7 @@ import os
 class Item2Item:
     def __init__(self, load_dir: str = None):
         self.item2item_frequency = pd.DataFrame()
-        self.item2item_scores: sparse.csc_matrix = None
+        self.item2item_lift_scores: sparse.csc_matrix = None
         
         self.item2idx:dict = None
         self.idx2item:dict = None
@@ -19,14 +19,22 @@ class Item2Item:
         self.subgroup_to_items: dict = None
         self.item_to_subgroup: dict = None
 
+        self.n_transactions = 0
+
         if load_dir:
             self.load_item2item_matrix(load_dir)
     
-    def partial_fit(self, data: pd.DataFrame, user_col: str, item_col: str, subgroup_col: str):
-        df = data.loc[:, [user_col, item_col]].drop_duplicates(subset=[user_col, item_col])
-        interaction_matrix = df.merge(df, on=user_col, how="outer").groupby([item_col + "_x", item_col + "_y"]).size().unstack().fillna(0)
-        
-        self.item2item_frequency = self.item2item_frequency.add(interaction_matrix, fill_value=0).fillna(0)
+    def partial_fit(self, data: pd.DataFrame, trans_col: str, item_col: str, subgroup_col: str):
+        # filter out transactions with num items = 1
+        df = pd.merge(data, data[trans_col].value_counts().apply(lambda x: x > 1).rename("filter flag"), how="left", on=trans_col)
+        df = df[df["filter flag"]]
+        self.n_transactions += df[trans_col].nunique()
+
+        # select columns to work on
+        df = df.loc[:, [trans_col, item_col]].drop_duplicates(subset=[trans_col, item_col])
+
+        local_frequency = df.merge(df, on=trans_col, how="outer").groupby([item_col + "_x", item_col + "_y"]).size().unstack().fillna(0)
+        self.item2item_frequency = self.item2item_frequency.add(local_frequency, fill_value=0).fillna(0)
         assert (self.item2item_frequency.index == self.item2item_frequency.columns).all()
         
         self.items_subgroup = pd.concat([self.items_subgroup, data[[item_col, subgroup_col]]], axis=0).drop_duplicates(item_col)
@@ -36,12 +44,13 @@ class Item2Item:
         self.item2idx = {str(code):i for i, code in enumerate(self.item2item_frequency.index)}
 
         item_frequency = np.diagonal(self.item2item_frequency.values)
-        # Subtracting intersection of items is to make score ranges from 0.0 to 1.0
-        item2item_frequency_union = item_frequency + item_frequency[np.newaxis].T - self.item2item_frequency.values
+
+        confidence = self.item2item_frequency.values / item_frequency[np.newaxis].T
         
-        intersection = self.item2item_frequency.values
-        np.fill_diagonal(intersection, 0)
-        self.item2item_scores = sparse.csc_matrix(intersection / item2item_frequency_union)
+        self.item2item_lift_scores = confidence / (item_frequency / self.n_transactions)
+        np.fill_diagonal(self.item2item_lift_scores, 0)
+        self.item2item_lift_scores = sparse.csc_matrix(self.item2item_lift_scores)
+        
         self._map_items_subgroup()
 
     def fit(self, data: pd.DataFrame, user_col: str, item_col: str, subgroup_col:str):
@@ -57,7 +66,7 @@ class Item2Item:
         if not os.path.exists(full_path):
             os.makedirs(full_path)
         
-        sparse.save_npz(full_path / "item2item-scores.npz", self.item2item_scores)
+        sparse.save_npz(full_path / "item2item-scores.npz", self.item2item_lift_scores)
         
         with open(full_path / 'idx2item.pickle', 'wb') as handle:
             pickle.dump(self.idx2item, handle, protocol=pickle.HIGHEST_PROTOCOL)
@@ -71,7 +80,7 @@ class Item2Item:
     def load_item2item_matrix(self, load_dir: str):
         full_path = Path("models") / "item2item" / load_dir
         
-        self.item2item_scores = sparse.load_npz(full_path / "item2item-scores.npz")
+        self.item2item_lift_scores = sparse.load_npz(full_path / "item2item-scores.npz")
         
         with open(full_path / 'idx2item.pickle', 'rb') as handle:
             self.idx2item = pickle.load(handle)
@@ -88,7 +97,7 @@ class Item2Item:
         if not idx:
             return {"items": [], "scores": []}
         
-        item_scores = np.squeeze(self.item2item_scores[idx, :].toarray())
+        item_scores = np.squeeze(self.item2item_lift_scores[idx, :].toarray())
         if exclude_subgroup:
             subgroup = self.item_to_subgroup[item_code]
             items_in_subgroup = set(self.subgroup_to_items[subgroup]).intersection(set(self.item2idx.keys()))
