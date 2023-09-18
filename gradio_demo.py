@@ -25,14 +25,17 @@ def bar_plot_fn(exclude_subgroup, item_code, n):
 
 
 #available_models = os.listdir("models/item2item")
-model = Item2Item(load_dir="1-year")
-items_mapper = load_items()
+#model = Item2Item(load_dir="1-year")
+#items_mapper = load_items()
 
 with gr.Blocks(theme=gr.themes.Default(text_size=gr.themes.sizes.text_lg)) as demo:
     with gr.Column():
         with gr.Row():
             item_code = gr.Textbox(label="Item Code")
-            exclude_subgroup = gr.Checkbox(label="Exclude Subgroup")
+            with gr.Column():
+                exclude_subgroup = gr.Checkbox(label="Exclude Subgroup")
+                exclude_product_group = gr.Checkbox(label="Exclude Product Group")
+            item_categories = gr.Dropdown([1, 2, 3], label="Item Category", multiselect=True)
             num_of_recommendations = gr.Number(5, label="Number of Recommendations")
         with gr.Row():
             submit = gr.Button()
