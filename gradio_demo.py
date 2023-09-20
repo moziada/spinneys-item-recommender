@@ -15,7 +15,8 @@ def load_items():
 def bar_plot_fn(item_code, exclude_subgroup, exclude_product_group, items_per_subgroup_limit, item_categories, n):
     output = model.get_top_n_frequent_items(item_code, n=int(n), exclude_subgroup=False)
     output = utils.post_ranking(item_code, output, exclude_subgroup, exclude_product_group, item_categories)
-    output = utils.max_items_per_subgroup(model_out=output, n=1)
+    if items_per_subgroup_limit:
+        output = utils.max_items_per_subgroup(model_out=output, n=1)
     df = pd.DataFrame(
             {
             "items": [items_mapper[i_code]["Item"] + " (" + str(items_mapper[i_code]["Product Size"]) + ")" for i_code in output["items"]],
