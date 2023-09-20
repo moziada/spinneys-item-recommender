@@ -14,7 +14,7 @@ def load_items():
 
 def bar_plot_fn(item_code, exclude_subgroup, exclude_product_group, item_categories, n):
     output = model.get_top_n_frequent_items(item_code, n=int(n), exclude_subgroup=False)
-    output = utils.post_ranking(item_code, output, exclude_subgroup, exclude_product_group, item_categories)
+    output = utils.post_ranking(item_code, output, exclude_subgroup, exclude_product_group, item_categories)7
     print(output)
     df = pd.DataFrame(
             {
@@ -30,15 +30,16 @@ def bar_plot_fn(item_code, exclude_subgroup, exclude_product_group, item_categor
 model = Item2Item(load_dir="1-year")
 items_mapper = load_items()
 
-with gr.Blocks(theme=gr.themes.Default(text_size=gr.themes.sizes.text_lg)) as demo:
+with gr.Blocks() as demo:
     with gr.Column():
         with gr.Row():
             item_code = gr.Textbox(label="Item Code")
             with gr.Column():
                 exclude_subgroup = gr.Checkbox(label="Exclude Subgroup")
                 exclude_product_group = gr.Checkbox(label="Exclude Product Group")
-            item_categories = gr.Dropdown(utils.items_info_df["Category Code"].unique(), label="Item Category", multiselect=True)
             num_of_recommendations = gr.Number(5, label="Number of Recommendations")
+        unique_categories = utils.items_info_df["Category Code"].unique().tolist()
+        item_categories = gr.Dropdown(choices=unique_categories, value=unique_categories, label="Item Category", multiselect=True)
         with gr.Row():
             submit = gr.Button()
         prod_name = gr.Textbox(label="Item Name")
