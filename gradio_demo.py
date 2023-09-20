@@ -12,10 +12,10 @@ def load_items():
     df.set_index("Item Code", inplace=True)
     return df.to_dict(orient="index")
 
-def bar_plot_fn(item_code, exclude_subgroup, exclude_product_group, item_categories, n):
+def bar_plot_fn(item_code, exclude_subgroup, exclude_product_group, items_per_subgroup_limit, item_categories, n):
     output = model.get_top_n_frequent_items(item_code, n=int(n), exclude_subgroup=False)
-    output = utils.post_ranking(item_code, output, exclude_subgroup, exclude_product_group, item_categories)7
-    print(output)
+    output = utils.post_ranking(item_code, output, exclude_subgroup, exclude_product_group, item_categories)
+    output = utils.max_items_per_subgroup(model_out=output, n=1)
     df = pd.DataFrame(
             {
             "items": [items_mapper[i_code]["Item"] + " (" + str(items_mapper[i_code]["Product Size"]) + ")" for i_code in output["items"]],
@@ -37,6 +37,7 @@ with gr.Blocks() as demo:
             with gr.Column():
                 exclude_subgroup = gr.Checkbox(label="Exclude Subgroup")
                 exclude_product_group = gr.Checkbox(label="Exclude Product Group")
+                items_per_subgroup_limit = gr.Checkbox(label="Items Per Subgroup Limit")
             num_of_recommendations = gr.Number(5, label="Number of Recommendations")
         unique_categories = utils.items_info_df["Category Code"].unique().tolist()
         item_categories = gr.Dropdown(choices=unique_categories, value=unique_categories, label="Item Category", multiselect=True)
@@ -45,6 +46,6 @@ with gr.Blocks() as demo:
         prod_name = gr.Textbox(label="Item Name")
         plot = gr.Plot()
 
-    submit.click(bar_plot_fn, inputs=[item_code, exclude_subgroup, exclude_product_group, item_categories, num_of_recommendations], outputs=[plot, prod_name])
+    submit.click(bar_plot_fn, inputs=[item_code, exclude_subgroup, exclude_product_group, items_per_subgroup_limit, item_categories, num_of_recommendations], outputs=[plot, prod_name])
 
 demo.launch()
