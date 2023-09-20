@@ -12,30 +12,39 @@ def test_fit():
     model.fit(df, user_col="Receipt No_", item_col="Item No_")
 
     result = np.array([[0, 2/3, 1/3, 1/3], [2/3, 0, 0.5, 0.5], [1/3, 0.5, 0, 1], [1/3, 0.5, 1, 0]])
-    assert np.allclose(result, model.item2item_scores.toarray())
+    assert np.allclose(result, model.item2item_lift_scores.toarray())
 
 def test_partial_fit():
     model = Item2Item()
     
     df1 = pd.DataFrame({
-        "Receipt No_": ["100", "100", "100", "100"],
-        "Item No_": ["10", "11", "12", "13"]})
+        "Receipt No_": ["100", "100"],
+        "Item No_": ["a", "b"]})
     
     df2 = pd.DataFrame({
         "Receipt No_": ["101", "101"],
-        "Item No_": ["10", "11"]})
-
-    df3 = pd.DataFrame({
-        "Receipt No_": ["102"],
-        "Item No_": ["10"]})
+        "Item No_": ["a", "b"]})
     
-    for df in [df1, df2, df3]:
-        model.partial_fit(df, user_col="Receipt No_", item_col="Item No_")
+    df3 = pd.DataFrame({
+        "Receipt No_": ["102", "102"],
+        "Item No_": ["a", "c"]})
+
+    df4 = pd.DataFrame({
+        "Receipt No_": ["103", "103"],
+        "Item No_": ["c", "d"]})
+    
+    df5 = pd.DataFrame({
+        "Receipt No_": ["104"],
+        "Item No_": ["e"]})
+    
+    for df in [df1, df2, df3, df4, df5]:
+        model.partial_fit(df, trans_col="Receipt No_", item_col="Item No_")
     
     model.estimate_scores()
 
-    result = np.array([[0, 2/3, 1/3, 1/3], [2/3, 0, 0.5, 0.5], [1/3, 0.5, 0, 1], [1/3, 0.5, 1, 0]])
-    assert np.allclose(result, model.item2item_scores.toarray())
+    result = np.array([[0, 4/3, 2/3, 0], [4/3, 0, 0, 0], [2/3, 0, 0, 2], [0, 0, 2, 0]])
+    print(model.item2item_lift_scores)
+    assert np.allclose(result, model.item2item_lift_scores.toarray())
 
 def test_get_top_n_frequent_items():
     model = Item2Item(load_dir="MOA-Jul-optimized-freq_adjusted-V01")

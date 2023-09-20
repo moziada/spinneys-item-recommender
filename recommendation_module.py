@@ -24,7 +24,7 @@ class Item2Item:
         if load_dir:
             self.load_item2item_matrix(load_dir)
     
-    def partial_fit(self, data: pd.DataFrame, trans_col: str, item_col: str, subgroup_col: str):
+    def partial_fit(self, data: pd.DataFrame, trans_col: str, item_col: str):
         # filter out transactions with num items = 1
         df = pd.merge(data, data[trans_col].value_counts().apply(lambda x: x > 1).rename("filter flag"), how="left", on=trans_col)
         df = df[df["filter flag"]]
@@ -33,11 +33,11 @@ class Item2Item:
         # select columns to work on
         df = df.loc[:, [trans_col, item_col]].drop_duplicates(subset=[trans_col, item_col])
 
-        local_frequency = df.merge(df, on=trans_col, how="outer").groupby([item_col + "_x", item_col + "_y"]).size().unstack().fillna(0)
+        local_frequency = df.merge(df, on=trans_col, how="outer").groupby([item_col + "_x", item_col + "_y"], observed=True).size().unstack().fillna(0)
         self.item2item_frequency = self.item2item_frequency.add(local_frequency, fill_value=0).fillna(0)
         assert (self.item2item_frequency.index == self.item2item_frequency.columns).all()
         
-        self.items_subgroup = pd.concat([self.items_subgroup, data[[item_col, subgroup_col]]], axis=0).drop_duplicates(item_col)
+        #self.items_subgroup = pd.concat([self.items_subgroup, data[[item_col, subgroup_col]]], axis=0).drop_duplicates(item_col)
 
     def estimate_scores(self):
         self.idx2item = {i:str(code) for i, code in enumerate(self.item2item_frequency.index)}
@@ -51,9 +51,9 @@ class Item2Item:
         np.fill_diagonal(self.item2item_lift_scores, 0)
         self.item2item_lift_scores = sparse.csc_matrix(self.item2item_lift_scores)
         
-        self._map_items_subgroup()
+        #self._map_items_subgroup()
 
-    def fit(self, data: pd.DataFrame, user_col: str, item_col: str, subgroup_col:str):
+    def fit(self, data: pd.DataFrame, user_col: str, item_col: str):
         self.partial_fit(data, user_col, item_col, subgroup_col)
         self.estimate_scores()
     
