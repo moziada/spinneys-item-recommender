@@ -26,7 +26,7 @@ class Item2Item:
     
     def partial_fit(self, data: pd.DataFrame, trans_col: str, item_col: str):
         # filter out transactions with num items = 1
-        df = pd.merge(data, data[trans_col].value_counts().apply(lambda x: x > 1).rename("filter flag"), how="left", on=trans_col)
+        df = pd.merge(data, data[[trans_col]].value_counts().apply(lambda x: x > 1).rename("filter flag"), how="left", on=trans_col)
         df = df[df["filter flag"]]
         self.n_transactions += df[trans_col].nunique()
 
