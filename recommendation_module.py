@@ -46,8 +46,8 @@ class Item2Item:
         item_frequency = np.diagonal(self.item2item_frequency.values)
 
         confidence = self.item2item_frequency.values / item_frequency[np.newaxis].T
-        
-        self.item2item_lift_scores = confidence / (item_frequency / self.n_transactions)
+        item_y_support = item_frequency / self.n_transactions
+        self.item2item_lift_scores = confidence / item_y_support
         np.fill_diagonal(self.item2item_lift_scores, 0)
         self.item2item_lift_scores = sparse.csc_matrix(self.item2item_lift_scores)
         
