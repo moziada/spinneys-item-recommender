@@ -12,7 +12,7 @@ def test_fit():
     model.fit(df, user_col="Receipt No_", item_col="Item No_")
 
     result = np.array([[0, 2/3, 1/3, 1/3], [2/3, 0, 0.5, 0.5], [1/3, 0.5, 0, 1], [1/3, 0.5, 1, 0]])
-    assert np.allclose(result, model.item2item_lift_scores.toarray())
+    assert np.allclose(result, model.lift.toarray())
 
 def test_partial_fit():
     model = Item2Item()
@@ -43,8 +43,8 @@ def test_partial_fit():
     model.estimate_scores()
 
     result = np.array([[0, 4/3, 2/3, 0], [4/3, 0, 0, 0], [2/3, 0, 0, 2], [0, 0, 2, 0]])
-    print(model.item2item_lift_scores)
-    assert np.allclose(result, model.item2item_lift_scores.toarray())
+    print(model.lift)
+    assert np.allclose(result, model.lift.toarray())
 
 def test_get_top_n_frequent_items():
     model = Item2Item(load_dir="MOA-Jul-optimized-freq_adjusted-V01")
