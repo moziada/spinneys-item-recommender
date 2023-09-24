@@ -25,7 +25,7 @@ def bar_plot_fn(exclude_subgroup, item_code, n, min_support, min_confidence, min
 
 
 #available_models = os.listdir("models/item2item")
-model = Item2Item(load_dir="1-year")
+model = Item2Item(load_dir="1-year-V02")
 items_mapper = load_items()
 
 with gr.Blocks(theme=gr.themes.Default(text_size=gr.themes.sizes.text_lg)) as demo:
@@ -34,10 +34,9 @@ with gr.Blocks(theme=gr.themes.Default(text_size=gr.themes.sizes.text_lg)) as de
             item_code = gr.Textbox(label="Item Code")
             exclude_subgroup = gr.Checkbox(label="Exclude Subgroup")
             num_of_recommendations = gr.Number(5, label="Number of Recommendations")
-            with gr.Column():
-                min_support = gr.Number(0.0, label="min_support", step=0.05)
-                min_cofidence = gr.Number(0.0, label="min_confidence", step=0.05)
-                min_lift = gr.Number(0.0, label="min_lift", step=0.05)
+            min_support = gr.Number(float, label="min_support", step=0.05)
+            min_cofidence = gr.Number(0.0, label="min_confidence", step=0.05)
+            min_lift = gr.Number(0.0, label="min_lift", step=0.05)
         with gr.Row():
             submit = gr.Button()
         prod_name = gr.Textbox(label="Item Name")

@@ -71,8 +71,8 @@ class Item2Item:
         if not os.path.exists(full_path):
             os.makedirs(full_path)
         
-        sparse.save_npz(full_path / "item2item-scores.npz", self.item_y_support)
-        sparse.save_npz(full_path / "item2item-scores.npz", self.lift)
+        sparse.save_npz(full_path / "support.npz", self.item_y_support)
+        sparse.save_npz(full_path / "confidence.npz", self.confidence)
         sparse.save_npz(full_path / "item2item-scores.npz", self.lift)
         
         with open(full_path / 'idx2item.pickle', 'wb') as handle:
@@ -107,8 +107,8 @@ class Item2Item:
             return {"items": [], "scores": []}
         
         item_scores = np.squeeze(self.lift[idx, :].toarray())
-        item_scores = np.where(self.item_y_support[idx, :].toarray() > min_support, item_scores, 0)
-        item_scores = np.where(self.confidence[idx, :].toarray() > min_confidence, item_scores, 0)
+        item_scores = np.where(np.squeeze(self.item_y_support.toarray()) > min_support, item_scores, 0)
+        item_scores = np.where(np.squeeze(self.confidence[idx, :].toarray()) > min_confidence, item_scores, 0)
         item_scores = np.where(item_scores > min_lift, item_scores, 0)
 
         if exclude_subgroup:
