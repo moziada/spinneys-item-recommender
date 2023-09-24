@@ -10,7 +10,9 @@ import os
 class Item2Item:
     def __init__(self, load_dir: str = None):
         self.item2item_frequency = pd.DataFrame()
-        self.item2item_lift_scores: sparse.csc_matrix = None
+        self.item_y_support: sparse.csc_matrix = None
+        self.confidence: sparse.csc_matrix = None
+        self.lift: sparse.csc_matrix = None
         
         self.item2idx:dict = None
         self.idx2item:dict = None
@@ -45,11 +47,14 @@ class Item2Item:
 
         item_frequency = np.diagonal(self.item2item_frequency.values)
 
-        confidence = self.item2item_frequency.values / item_frequency[np.newaxis].T
-        item_y_support = item_frequency / self.n_transactions
-        self.item2item_lift_scores = confidence / item_y_support
-        np.fill_diagonal(self.item2item_lift_scores, 0)
-        self.item2item_lift_scores = sparse.csc_matrix(self.item2item_lift_scores)
+        self.confidence = self.item2item_frequency.values / item_frequency[np.newaxis].T
+        self.item_y_support = item_frequency / self.n_transactions
+        self.lift = self.confidence / self.item_y_support
+        
+        np.fill_diagonal(self.lift, 0)
+        self.confidence = sparse.csc_matrix(self.confidence)
+        self.item_y_support = sparse.csc_matrix(self.item_y_support)
+        self.lift = sparse.csc_matrix(self.lift)
         
         #self._map_items_subgroup()
 
@@ -66,7 +71,9 @@ class Item2Item:
         if not os.path.exists(full_path):
             os.makedirs(full_path)
         
-        sparse.save_npz(full_path / "item2item-scores.npz", self.item2item_lift_scores)
+        sparse.save_npz(full_path / "item2item-scores.npz", self.item_y_support)
+        sparse.save_npz(full_path / "item2item-scores.npz", self.lift)
+        sparse.save_npz(full_path / "item2item-scores.npz", self.lift)
         
         with open(full_path / 'idx2item.pickle', 'wb') as handle:
             pickle.dump(self.idx2item, handle, protocol=pickle.HIGHEST_PROTOCOL)
@@ -80,7 +87,9 @@ class Item2Item:
     def load_item2item_matrix(self, load_dir: str):
         full_path = Path("models") / "item2item" / load_dir
         
-        self.item2item_lift_scores = sparse.load_npz(full_path / "item2item-scores.npz")
+        self.item_y_support = sparse.load_npz(full_path / "support.npz")
+        self.confidence = sparse.load_npz(full_path / "confidence.npz")
+        self.lift = sparse.load_npz(full_path / "item2item-scores.npz")
         
         with open(full_path / 'idx2item.pickle', 'rb') as handle:
             self.idx2item = pickle.load(handle)
@@ -92,12 +101,16 @@ class Item2Item:
         with open(full_path / 'item_to_subgroup.pickle', 'rb') as handle:
             self.item_to_subgroup = pickle.load(handle)
 
-    def get_top_n_frequent_items(self, item_code: str, n=5, exclude_subgroup=False) -> dict:
+    def get_top_n_frequent_items(self, item_code: str, n=5, exclude_subgroup=False, min_support=0.1, min_confidence=0.0, min_lift=0.0) -> dict:
         idx = self.item2idx.get(item_code)
         if not idx:
             return {"items": [], "scores": []}
         
-        item_scores = np.squeeze(self.item2item_lift_scores[idx, :].toarray())
+        item_scores = np.squeeze(self.lift[idx, :].toarray())
+        item_scores = np.where(self.item_y_support[idx, :].toarray() > min_support, item_scores, 0)
+        item_scores = np.where(self.confidence[idx, :].toarray() > min_confidence, item_scores, 0)
+        item_scores = np.where(item_scores > min_lift, item_scores, 0)
+
         if exclude_subgroup:
             subgroup = self.item_to_subgroup[item_code]
             items_in_subgroup = set(self.subgroup_to_items[subgroup]).intersection(set(self.item2idx.keys()))

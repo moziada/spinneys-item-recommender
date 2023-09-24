@@ -11,8 +11,8 @@ def load_items():
     df.set_index("Item Code", inplace=True)
     return df.to_dict(orient="index")
 
-def bar_plot_fn(exclude_subgroup, item_code, n):
-    output = model.get_top_n_frequent_items(item_code, n=int(n), exclude_subgroup=exclude_subgroup)
+def bar_plot_fn(exclude_subgroup, item_code, n, min_support, min_confidence, min_lift):
+    output = model.get_top_n_frequent_items(item_code, n=int(n), exclude_subgroup=exclude_subgroup, min_support=min_support, min_confidence=min_cofidence, min_lift=min_lift)
     print(output)
     df = pd.DataFrame(
             {
@@ -34,12 +34,16 @@ with gr.Blocks(theme=gr.themes.Default(text_size=gr.themes.sizes.text_lg)) as de
             item_code = gr.Textbox(label="Item Code")
             exclude_subgroup = gr.Checkbox(label="Exclude Subgroup")
             num_of_recommendations = gr.Number(5, label="Number of Recommendations")
+            with gr.Column():
+                min_support = gr.Number(0.0, label="min_support", step=0.05)
+                min_cofidence = gr.Number(0.0, label="min_confidence", step=0.05)
+                min_lift = gr.Number(0.0, label="min_lift", step=0.05)
         with gr.Row():
             submit = gr.Button()
         prod_name = gr.Textbox(label="Item Name")
         plot = gr.Plot()
 
-    submit.click(bar_plot_fn, inputs=[exclude_subgroup, item_code, num_of_recommendations], outputs=[plot, prod_name])
+    submit.click(bar_plot_fn, inputs=[exclude_subgroup, item_code, num_of_recommendations, min_support, min_cofidence, min_lift], outputs=[plot, prod_name])
     #exclude_subgroup.change(bar_plot_fn, inputs=[exclude_subgroup, item_code, num_of_recommendations], outputs=[plot, prod_name])
     #num_of_recommendations.change(bar_plot_fn, inputs=[exclude_subgroup, item_code, num_of_recommendations], outputs=[plot, prod_name])
     #item_code.change(bar_plot_fn, inputs=[exclude_subgroup, item_code], outputs=plot)
