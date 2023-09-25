@@ -12,7 +12,7 @@ def load_items():
     return df.to_dict(orient="index")
 
 def bar_plot_fn(exclude_subgroup, item_code, n, min_support, min_confidence, min_lift):
-    output = model.get_top_n_frequent_items(item_code, n=int(n), exclude_subgroup=exclude_subgroup, min_support=min_support, min_confidence=min_cofidence, min_lift=min_lift)
+    output = model.get_top_n_frequent_items(item_code, n=int(n), exclude_subgroup=exclude_subgroup, min_support=min_support, min_confidence=min_confidence, min_lift=min_lift)
     print(output)
     df = pd.DataFrame(
             {
@@ -34,9 +34,9 @@ with gr.Blocks(theme=gr.themes.Default(text_size=gr.themes.sizes.text_lg)) as de
             item_code = gr.Textbox(label="Item Code")
             exclude_subgroup = gr.Checkbox(label="Exclude Subgroup")
             num_of_recommendations = gr.Number(5, label="Number of Recommendations")
-            min_support = gr.Number(float, label="min_support", step=0.05)
-            min_cofidence = gr.Number(0.0, label="min_confidence", step=0.05)
-            min_lift = gr.Number(0.0, label="min_lift", step=0.05)
+            min_support = gr.Number(0.01, label="min_support", step=0.05)
+            min_cofidence = gr.Number(0.1, label="min_confidence", step=0.05)
+            min_lift = gr.Number(1, label="min_lift", step=0.05)
         with gr.Row():
             submit = gr.Button()
         prod_name = gr.Textbox(label="Item Name")
