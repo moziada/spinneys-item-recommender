@@ -109,7 +109,7 @@ class Item2Item:
         item_scores = np.squeeze(self.lift[idx, :].toarray())
         item_scores = np.where(np.squeeze(self.item_y_support.toarray()) > min_support, item_scores, 0)
         item_scores = np.where(np.squeeze(self.confidence[idx, :].toarray()) > min_confidence, item_scores, 0)
-        item_scores = np.where(item_scores > min_lift, item_scores, 0)
+        item_scores = item_scores[item_scores > min_lift]
 
         if exclude_subgroup:
             subgroup = self.item_to_subgroup[item_code]
@@ -118,6 +118,7 @@ class Item2Item:
             item_scores[exclude_idxs] = 0
 
         # Getting top n scores
+        n = min(n, item_scores.shape[0])
         top_n_idxs = np.argpartition(item_scores, -n)[-n:]
         # Sorting top_n_idxs in descending order
         top_n_idxs = top_n_idxs[np.argsort(item_scores[top_n_idxs])[::-1]]
