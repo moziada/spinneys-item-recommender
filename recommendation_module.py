@@ -109,7 +109,10 @@ class Item2Item:
         item_scores = np.squeeze(self.lift[idx, :].toarray())
         item_scores = np.where(np.squeeze(self.item_y_support.toarray()) > min_support, item_scores, 0)
         item_scores = np.where(np.squeeze(self.confidence[idx, :].toarray()) > min_confidence, item_scores, 0)
-        item_scores = item_scores[item_scores > min_lift]
+
+        #lift filter
+        filtered_indices = np.where(item_scores > min_lift)[0]
+        item_scores = item_scores[filtered_indices]
 
         if exclude_subgroup:
             subgroup = self.item_to_subgroup[item_code]
@@ -123,7 +126,8 @@ class Item2Item:
         # Sorting top_n_idxs in descending order
         top_n_idxs = top_n_idxs[np.argsort(item_scores[top_n_idxs])[::-1]]
         ret_dict = {
-            "items": [self.idx2item[i] for i in top_n_idxs],
+            # filtered_indices holds the original index before filtering
+            "items": [self.idx2item[i] for i in filtered_indices[top_n_idxs]],
             "scores": item_scores[top_n_idxs]
             }
         return ret_dict
