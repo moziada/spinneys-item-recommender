@@ -26,7 +26,7 @@ class Item2Item:
         # select columns to work on
         df = data.loc[:, [user_col, item_col]].drop_duplicates(subset=[user_col, item_col])
 
-        interaction_matrix = df.merge(df, on=user_col, how="outer").groupby([item_col + "_x", item_col + "_y"]).size().unstack().fillna(0)
+        interaction_matrix = df.merge(df, on=user_col, how="outer").groupby([item_col + "_x", item_col + "_y"], observed=True).size().unstack().fillna(0)
         
         self.item2item_frequency = self.item2item_frequency.add(interaction_matrix, fill_value=0).fillna(0)
         assert (self.item2item_frequency.index == self.item2item_frequency.columns).all()
