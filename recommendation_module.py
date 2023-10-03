@@ -14,22 +14,22 @@ class Item2Item:
         
         self.item2idx:dict = None
         self.idx2item:dict = None
-        
-        self.items_subgroup = pd.DataFrame()
-        self.subgroup_to_items: dict = None
-        self.item_to_subgroup: dict = None
 
         if load_dir:
             self.load_item2item_matrix(load_dir)
     
-    def partial_fit(self, data: pd.DataFrame, user_col: str, item_col: str, subgroup_col: str):
+    def partial_fit(self, data: pd.DataFrame, user_col: str, item_col: str):
+        # filter out transactions with num items = 1
+        df = pd.merge(data, data[[user_col]].value_counts().apply(lambda x: x > 1).rename("filter flag"), how="left", on=user_col)
+        df = df[df["filter flag"]]
+
+        # select columns to work on
         df = data.loc[:, [user_col, item_col]].drop_duplicates(subset=[user_col, item_col])
+
         interaction_matrix = df.merge(df, on=user_col, how="outer").groupby([item_col + "_x", item_col + "_y"]).size().unstack().fillna(0)
         
         self.item2item_frequency = self.item2item_frequency.add(interaction_matrix, fill_value=0).fillna(0)
         assert (self.item2item_frequency.index == self.item2item_frequency.columns).all()
-        
-        self.items_subgroup = pd.concat([self.items_subgroup, data[[item_col, subgroup_col]]], axis=0).drop_duplicates(item_col)
 
     def estimate_scores(self):
         self.idx2item = {i:str(code) for i, code in enumerate(self.item2item_frequency.index)}
@@ -42,16 +42,11 @@ class Item2Item:
         intersection = self.item2item_frequency.values
         np.fill_diagonal(intersection, 0)
         self.item2item_scores = sparse.csc_matrix(intersection / item2item_frequency_union)
-        self._map_items_subgroup()
 
-    def fit(self, data: pd.DataFrame, user_col: str, item_col: str, subgroup_col:str):
-        self.partial_fit(data, user_col, item_col, subgroup_col)
+    def fit(self, data: pd.DataFrame, user_col: str, item_col: str):
+        self.partial_fit(data, user_col, item_col)
         self.estimate_scores()
     
-    def _map_items_subgroup(self):
-        self.subgroup_to_items = self.items_subgroup.groupby("Subgroup")['Item No_'].apply(set).to_dict()
-        self.item_to_subgroup = self.items_subgroup.set_index("Item No_")["Subgroup"].to_dict()
-
     def save_model(self, save_dir: str):
         full_path = Path("models") / "item2item" / save_dir
         if not os.path.exists(full_path):
@@ -61,12 +56,6 @@ class Item2Item:
         
         with open(full_path / 'idx2item.pickle', 'wb') as handle:
             pickle.dump(self.idx2item, handle, protocol=pickle.HIGHEST_PROTOCOL)
-        
-        with open(full_path / 'subgroup_to_items.pickle', 'wb') as handle:
-            pickle.dump(self.subgroup_to_items, handle, protocol=pickle.HIGHEST_PROTOCOL)
-        
-        with open(full_path / 'item_to_subgroup.pickle', 'wb') as handle:
-            pickle.dump(self.item_to_subgroup, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
     def load_item2item_matrix(self, load_dir: str):
         full_path = Path("models") / "item2item" / load_dir
@@ -77,24 +66,12 @@ class Item2Item:
             self.idx2item = pickle.load(handle)
         self.item2idx = {v: k for k, v in self.idx2item.items()}
 
-        with open(full_path / 'subgroup_to_items.pickle', 'rb') as handle:
-            self.subgroup_to_items = pickle.load(handle)
-
-        with open(full_path / 'item_to_subgroup.pickle', 'rb') as handle:
-            self.item_to_subgroup = pickle.load(handle)
-
-    def get_top_n_frequent_items(self, item_code: str, n=5, exclude_subgroup=False) -> dict:
+    def get_top_n_frequent_items(self, item_code: str, n=5) -> dict:
         idx = self.item2idx.get(item_code)
         if not idx:
             return {"items": [], "scores": []}
         
         item_scores = np.squeeze(self.item2item_scores[idx, :].toarray())
-        if exclude_subgroup:
-            subgroup = self.item_to_subgroup[item_code]
-            items_in_subgroup = set(self.subgroup_to_items[subgroup]).intersection(set(self.item2idx.keys()))
-            exclude_idxs = list(map(lambda x: self.item2idx[x], items_in_subgroup))
-            item_scores[exclude_idxs] = 0
-
         # Getting top n scores
         top_n_idxs = np.argpartition(item_scores, -n)[-n:]
         # Sorting top_n_idxs in descending order
