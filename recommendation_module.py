@@ -6,14 +6,17 @@ import pickle
 from itertools import combinations, permutations
 from tqdm import tqdm
 import os
+from recommendation_result import RecommendationResult
 
 class Item2Item:
-    def __init__(self, load_dir: str = None):
+    def __init__(self, load_dir: str = None, items_info_dir: str = None):
         self.item2item_frequency = pd.DataFrame()
         self.item2item_scores: sparse.csc_matrix = None
         
         self.item2idx:dict = None
         self.idx2item:dict = None
+
+        self.items_info_dir = items_info_dir
 
         if load_dir:
             self.load_item2item_matrix(load_dir)
@@ -69,7 +72,7 @@ class Item2Item:
     def get_top_n_frequent_items(self, item_code: str, n=5) -> dict:
         idx = self.item2idx.get(item_code)
         if not idx:
-            return {"items": [], "scores": []}
+            return RecommendationResult([], [], self.items_info_dir)
         
         item_scores = np.squeeze(self.item2item_scores[idx, :].toarray())
         # Getting top n scores
@@ -80,7 +83,7 @@ class Item2Item:
             "items": [self.idx2item[i] for i in top_n_idxs],
             "scores": item_scores[top_n_idxs]
             }
-        return ret_dict
+        return RecommendationResult(ret_dict["items"], ret_dict["scores"], self.items_info_dir)
 
 
 class Item2Subgroup():

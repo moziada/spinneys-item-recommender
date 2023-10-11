@@ -26,16 +26,12 @@ def post_ranking(item_code: str, model_out: dict, exclude_subgroup: bool, exclud
     
     return {"items": item_codes, "scores": item_scores}
 
-def max_items_per_subgroup(model_out: dict, n: int=1):
+def rule_max_items_per_subgroup(model_out: dict, n: int=1):
     item_codes = []
     item_scores = []
     subgroup_count = {}
     for i, item_code in enumerate(model_out["items"]):
-        item_record = items_info_df[items_info_df["Item Code"]==item_code]
-        if item_record.empty:
-            print(f"Item code {item_code} is not found")
-            return None
-        subgroup_code = item_record["Subgroup Code"].values[0]
+        subgroup_code = get_item_subgroup(item_code)
         if subgroup_count.get(subgroup_code, 0) < n:
             item_codes.append(model_out["items"][i])
             item_scores.append(model_out["scores"][i])
@@ -43,3 +39,57 @@ def max_items_per_subgroup(model_out: dict, n: int=1):
     
     return {"items": item_codes, "scores": item_scores}
 
+def rule_same_category(model_out: dict, antecedent_item_category):
+    item_codes = []
+    item_scores = []
+    for i, item_code in enumerate(model_out["items"]):
+         consequen_item_category = get_item_category(item_code)
+         if antecedent_item_category == consequen_item_category:
+            item_codes.append(model_out["items"][i])
+            item_scores.append(model_out["scores"][i])
+
+def rule_different_category(model_out: dict, antecedent_item_category):
+    item_codes = []
+    item_scores = []
+    for i, item_code in enumerate(model_out["items"]):
+         consequen_item_category = get_item_category(item_code)
+         if antecedent_item_category != consequen_item_category:
+            item_codes.append(model_out["items"][i])
+            item_scores.append(model_out["scores"][i])
+
+def rule_different_subgroup(model_out: dict, antecedent_item_subgroup):
+    item_codes = []
+    item_scores = []
+    for i, item_code in enumerate(model_out["items"]):
+         consequen_item_subgroup = get_item_subgroup(item_code)
+         if antecedent_item_subgroup != consequen_item_subgroup:
+            item_codes.append(model_out["items"][i])
+            item_scores.append(model_out["scores"][i])
+
+def apply_category_filters(model_out: dict, antecedent_item_code):
+    antecedent_item_category = get_item_category(antecedent_item_code)
+    # H&B category = 0104, GM division categories = 03xx
+    if antecedent_item_category == "0104" or antecedent_item_category.startswith("03"):
+        model_out = rule_same_category(model_out, antecedent_item_category)
+    
+    # if category is meat, recommend products out of meat category
+    elif antecedent_item_category == "0209":
+        model_out = rule_different_category(model_out, "0209")
+    
+    # if nothing from above, just remove recommendations from the same subgroup
+    else:
+        antecedent_item_subgroup = get_item_subgroup(antecedent_item_code)
+        model_out = rule_different_subgroup(model_out, antecedent_item_subgroup)
+    
+    model_out = rule_max_items_per_subgroup(model_out, n=1)
+    return model_out
+    
+def get_item_category(item_code: str) -> str:
+    item_record = items_info_df[items_info_df["Item Code"]==item_code]
+    if not item_record.empty:
+        return item_record["Category Code"].values[0]
+    
+def get_item_subgroup(item_code: str) -> str:
+    item_record = items_info_df[items_info_df["Item Code"]==item_code]
+    if not item_record.empty:
+        return item_record["Subgroup Code"].values[0]
