@@ -7,17 +7,16 @@ import os
 from recommendation_result import RecommendationResult
 
 class Item2Item:
-    def __init__(self, load_dir: str = None, items_info_dir: str = None):
+    def __init__(self, model_name: str = None):
         self.item2item_frequency = pd.DataFrame()
         self.item2item_scores: sparse.csc_matrix = None
         
         self.item2idx:dict = None
         self.idx2item:dict = None
 
-        self.items_info_dir = items_info_dir
-
-        if load_dir:
-            self.load_item2item_matrix(load_dir)
+        if model_name:
+            self.load_item2item_matrix(model_name)
+            self.items_info_dir = Path("data") / model_name / "items data" / "ItemInfo.parquet"
     
     def partial_fit(self, data: pd.DataFrame, user_col: str, item_col: str):
         # filter out transactions with num items = 1
@@ -49,13 +48,13 @@ class Item2Item:
         self.estimate_scores()
     
     def save_model(self, save_dir: str):
-        full_path = Path("models") / "item2item" / save_dir
-        if not os.path.exists(full_path):
-            os.makedirs(full_path)
+        model_path = Path("models") / "item2item" / save_dir
+        if not os.path.exists(model_path):
+            os.makedirs(model_path)
         
-        sparse.save_npz(full_path / "item2item-scores.npz", self.item2item_scores)
+        sparse.save_npz(model_path / "item2item-scores.npz", self.item2item_scores)
         
-        with open(full_path / 'idx2item.pickle', 'wb') as handle:
+        with open(model_path / 'idx2item.pickle', 'wb') as handle:
             pickle.dump(self.idx2item, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
     def load_item2item_matrix(self, load_dir: str):
@@ -67,7 +66,7 @@ class Item2Item:
             self.idx2item = pickle.load(handle)
         self.item2idx = {v: k for k, v in self.idx2item.items()}
 
-    def get_top_n_frequent_items(self, item_code: str, n=5) -> dict:
+    def get_top_n_frequent_items(self, item_code: str, n=5) -> RecommendationResult:
         idx = self.item2idx.get(item_code)
         if not idx:
             return RecommendationResult([], [], self.items_info_dir)
@@ -78,7 +77,7 @@ class Item2Item:
         # Sorting top_n_idxs in descending order
         top_n_idxs = top_n_idxs[np.argsort(item_scores[top_n_idxs])[::-1]]
         ret_dict = {
-            "items": [self.idx2item[i] for i in top_n_idxs],
+            "items": np.array([self.idx2item[i] for i in top_n_idxs]),
             "scores": item_scores[top_n_idxs]
             }
         return RecommendationResult(ret_dict["items"], ret_dict["scores"], self.items_info_dir)
