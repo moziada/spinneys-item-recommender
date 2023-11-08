@@ -62,7 +62,7 @@ class DataPreparation:
         
 
 CFG_PATH = "config/server13_db_config.json"
-DATA_PATH = Path("data/Loyalty-02-10-2023")
+DATA_PATH = Path("data/Loyalty-03-10-2023")
 data_loader = DataPreparation(cfg_file_path=CFG_PATH)
 
 query_1 =   '''
@@ -94,6 +94,6 @@ query_2 = '''
             AND TSE.Quantity < 0
             order by TSE.Date, TSE.[Receipt No_], TSE.[Item No_]
         '''
-data_loader.extract_transactions(query_2, start_date="8/01/2023", end_date="9/01/2023", output_directory=DATA_PATH)
+data_loader.extract_transactions(query_2, start_date="10/01/2021", end_date="10/01/2023", output_directory=DATA_PATH)
 
 data_loader.close_connection()
