@@ -12,7 +12,7 @@ def load_items():
     return df.to_dict(orient="index")
 
 def bar_plot_fn(item_code, n):
-    output = model.get_top_n_frequent_items(item_code, n=100)
+    output = model.get_top_n_frequent_items(item_code, n=50)
     output.apply_category_filters(item_code)
     output = output.get_top_n_recommendations(n=int(n))
     df = pd.DataFrame(
